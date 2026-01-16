@@ -24,13 +24,20 @@ const CarDetails = () => {
   const [paying, setPaying] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // FETCH CAR
   useEffect(() => {
     const fetchCar = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("cars")
         .select("*")
         .eq("id", id)
         .single();
+
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
 
       setCar(data);
 
@@ -47,6 +54,7 @@ const CarDetails = () => {
     fetchCar();
   }, [id]);
 
+  // CALCULATE PRICE
   useEffect(() => {
     if (!startDate || !endDate || !car) {
       setTotalPrice(0);
@@ -67,7 +75,7 @@ const CarDetails = () => {
     }
   }, [startDate, endDate, delivery, car]);
 
-  // STEP 1 — OPEN PAYMENT
+  // STEP 1 — PROCEED TO PAYMENT
   const handleProceedToPayment = () => {
     if (!user) {
       navigate("/auth", { state: { redirectTo: `/cars/${id}` } });
@@ -78,23 +86,33 @@ const CarDetails = () => {
     setShowPayment(true);
   };
 
-  // STEP 2 — FAKE STRIPE PAYMENT
+  // STEP 2 — FAKE PAYMENT + SAVE BOOKING
   const handleFakePayment = async () => {
     setPaying(true);
 
-    // fake delay
     setTimeout(async () => {
-      await supabase.from("bookings").insert([
-        {
-          user_id: user.id,
-          car_id: car.id,
-          start_date: startDate,
-          end_date: endDate,
-          total_price: totalPrice,
-          delivery,
-          payment_status: "paid",
-        },
-      ]);
+      const { data, error } = await supabase
+        .from("bookings")
+        .insert([
+          {
+            car_id: car.id,
+            start_date: startDate,
+            end_date: endDate,
+            total_price: totalPrice,
+            delivery,
+            payment_status: "paid",
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error("BOOKING INSERT ERROR:", error);
+        alert(error.message);
+        setPaying(false);
+        return;
+      }
+
+      console.log("BOOKING SAVED:", data);
 
       setPaying(false);
       setShowPayment(false);
@@ -113,6 +131,7 @@ const CarDetails = () => {
   return (
     <section className="min-h-screen bg-black text-white px-8 py-24">
       <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 items-center">
+
         {/* LEFT */}
         <div>
           <h1 className="text-5xl font-light mb-6">{car.brand}</h1>
@@ -120,6 +139,7 @@ const CarDetails = () => {
           <p className="text-blue-400 text-3xl mb-8">${car.price} / day</p>
 
           <div className="bg-zinc-900 rounded-2xl p-6 space-y-4 border border-zinc-800">
+
             <input
               type="date"
               value={startDate}
@@ -181,21 +201,26 @@ const CarDetails = () => {
         </div>
       </div>
 
-      {/* FAKE STRIPE MODAL */}
+      {/* PAYMENT MODAL */}
       {showPayment && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-md">
             <h3 className="text-2xl mb-4">Payment</h3>
 
             <div className="space-y-3 text-sm text-gray-400">
-              <p>Card Number</p>
               <input
                 placeholder="4242 4242 4242 4242"
                 className="w-full p-3 bg-black border border-zinc-700 rounded"
               />
               <div className="grid grid-cols-2 gap-4">
-                <input placeholder="MM / YY" className="p-3 bg-black border border-zinc-700 rounded" />
-                <input placeholder="CVC" className="p-3 bg-black border border-zinc-700 rounded" />
+                <input
+                  placeholder="MM / YY"
+                  className="p-3 bg-black border border-zinc-700 rounded"
+                />
+                <input
+                  placeholder="CVC"
+                  className="p-3 bg-black border border-zinc-700 rounded"
+                />
               </div>
             </div>
 
@@ -214,7 +239,6 @@ const CarDetails = () => {
 };
 
 export default CarDetails;
-
 
 
 
